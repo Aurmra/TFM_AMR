@@ -1,0 +1,188 @@
+---
+title: "Análisis estadístico TFM"
+author: "Aurora Moreno Racero"
+date: "22/10/2024"
+output: html_document
+---
+
+
+## PCA analysis
+
+```{r cars}
+library(ggplot2)
+pcoa_axes=read.table("mel_oral_fem.opti_mcc.thetayc.0.03.lt.ave.pcoa.axes", header=T, sep="\t")
+pcoa_loadings=read.table("mel_oral_fem.opti_mcc.thetayc.0.03.lt.ave.pcoa.loadings",header = T, sep = "\t")
+sample_names=pcoa_axes[,1]
+
+#Two first componentes are represented.
+
+pc_sample1=pcoa_axes$axis1
+pc_sample2=pcoa_axes$axis2
+df_samples=data.frame(PC1=pc_sample1, PC2=pc_sample2, Sample= sample_names)
+Grupos <- c(rep("Control", 7), rep("Melatonina", 6))
+pc_loading1=pcoa_loadings$loading[1]
+pc_loading2=pcoa_loadings$loading[2]
+df_loadings=data.frame(PC1=pc_loading1, PC2=pc_loading2)
+
+ggplot(df_samples, aes(x = PC1, y = PC2, color = Grupos, label = Sample)) +
+  geom_point(size = 4) +  
+  geom_text(vjust = 1, hjust = 1) +  
+  xlab("PC1 (35,12%)") + ylab("PC2 (20.7%)") +
+  scale_color_manual(values = c("Control" = "blue", "Melatonina" = "orange")) +  
+  theme_minimal() +
+  theme(legend.title = element_text(size = 12), legend.text = element_text(size = 10)) 
+```
+## Relative abundance of phylum analysis:
+```{r}
+#Modification of file to adapt it to excel.
+taxones=read.csv("mel_oral_fem.trim.contigs.good.unique.good.filter.unique.precluster.denovo.vsearch.opti_mcc.0.03.cons.tax.summary", header=T, sep="\t")
+taxones_ordenado=taxones[order(taxones$taxlevel), ]
+filos_completo=taxones_ordenado[taxones_ordenado$taxlevel==2, ]
+filos=filos_completo[, -c(2,4,5)]
+write.csv(filos, file="filos")
+genero_completo=taxones_ordenado[taxones_ordenado$taxlevel==6, ]
+genero=genero_completo[, -c(2,4,5)]
+write.csv(genero, file="genero")
+
+#Relative abundance of phylum:
+
+filo_abundancia=read.csv("filos.csv", sep=",")
+filo_abundancia[] <- lapply(filo_abundancia, function(x) gsub(",", ".", x))
+filo_abundancia=filo_abundancia[-c((1:15),26), ]
+nombres_filos=filo_abundancia[,2]
+rownames(filo_abundancia)=nombres_filos
+filo_abundancia=filo_abundancia[-c(1,2)]
+str(filo_abundancia)
+colnames(filo_abundancia)=Grupos 
+```
+##Relative abundance analysis for genre.
+```{r}
+
+otus_file= read.csv("mel_oral_fem.trim.contigs.good.unique.good.filter.unique.precluster.denovo.vsearch.opti_mcc.merge.0.03.lefse_summary", head= T, "\t")
+
+#It is sorded based on LDA value.
+
+otu_ordenado=otus_file[order(otus_file$LDA), ]
+
+taxonomy_file= read.csv("mel_oral_fem.trim.contigs.good.unique.good.filter.unique.precluster.denovo.vsearch.opti_mcc.0.03.cons.0.03.merge.cons.taxonomy", head= T, sep="\t")
+
+otu_ordenado[6]=c("Enterorhabdus","Aerococcus","Negativibacillus","Clostridia_unclassified", "UCG-010_ge", "Erysipelotrichaceae", "Anaerovoracaceae_ge", "Anaerostipes", "Dubosiella", "Rikenellaceae_RC9_gut_group", "Lachnospiraceae_NK4A136_group"
+)
+grupos_otus=c(rep("MLT",4), rep("CTRL", 7))
+otu_ordenado[7]=grupos_otus
+
+otu_ordenado=otu_ordenado[1:11, ]
+str(otu_ordenado)
+head(otu_ordenado)
+
+otu_ordenado$V7 <- as.factor(otu_ordenado$V7)
+
+otu_ordenado$LDA <- as.numeric(as.character(otu_ordenado$LDA))
+
+head(otu_ordenado)
+str(otu_ordenado)
+summary(otu_ordenado$LDA)
+
+ggplot(otu_ordenado, aes(x = V6, y = LDA, fill = V7)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  scale_fill_manual(values = c("MLT" = "orange", "CTRL" = "blue")) + 
+  labs(x = "Género", y = "Valor LDA", fill = "Grupo") + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+```
+##Ecological diversity analysis
+```{r}
+Estadística=read.csv(file="mel_oral_fem.opti_mcc.groups.ave-std.summary" , head= T, sep= "\t")
+
+shannon= Estadística[, "shannon"]
+shannon=shannon[c(1:13)] #Only AVE values
+df= data.frame(shannon=shannon, Grupos= Grupos)
+test <- wilcox.test(shannon ~ Grupos, data = df)
+test
+
+
+sobs= Estadística[, "sobs"]
+sobs=sobs[c(1:13)]
+df= data.frame(sobs=sobs, Grupos= Grupos)
+test <- wilcox.test(sobs ~ Grupos, data = df)
+test
+
+shannon= as.data.frame(shannon)
+shannon[2] <- Grupos
+
+ggplot(shannon, aes(x = Grupos, y = shannon, fill = Grupos)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("Control" = "blue", "Melatonina" = "orange")) +
+  labs(title = "Comparación de Shannon entre Control y Melatonina", y = "Shannon") +
+  theme_minimal()
+
+
+sobs=as.data.frame(sobs)
+sobs[2]=Grupos
+ggplot(sobs, aes(x = Grupos, y = sobs, fill = Grupos)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("Control" = "blue", "Melatonina" = "orange")) +
+  labs(title = "Comparación de Sobs entre Control y Melatonina", y = "Sobs") +
+  theme_minimal()
+
+
+statistic <- c()  
+p_originales <- c()  
+
+
+for (i in 1:nrow(filo_abundancia)) {
+  abundancia <- as.numeric(as.matrix(filo_abundancia[i,]))
+  aux_w <- wilcox.test(abundancia ~ Grupos, exact = TRUE, alternative = "two.sided")
+  statistic[i] <- aux_w$statistic
+  p_originales[i] <- aux_w$p.value
+}
+
+res_wilcoxon=cbind.data.frame(nombres_filos,statistic, p_originales)
+print(res_wilcoxon)
+write.csv(res_wilcoxon, file="res_wilcoxon.csv")
+
+
+
+
+```
+##Average and typical deviation calcules ofrelative abundance of phylum per group. 
+``` {r}
+
+library(dplyr)
+calcular_estadisticas <- function(df, grupos) {
+  resultados <- data.frame()  
+  for (i in 1:nrow(df)) {  
+    valores <- as.numeric(df[i,])  
+    
+    control_vals <- valores[grupos == "Control"]
+    control_media <- mean(control_vals)
+    control_sd <- sd(control_vals)
+    
+   
+    melatonina_vals <- valores[grupos == "Melatonina"]
+    melatonina_media <- mean(melatonina_vals)
+    melatonina_sd <- sd(melatonina_vals)
+    
+    resultados <- rbind(resultados, data.frame(
+      
+      Control_Media = control_media,
+      Control_SD = control_sd,
+      Melatonina_Media = melatonina_media,
+      Melatonina_SD = melatonina_sd
+    ))
+  }
+  return(resultados)
+}
+
+resultados <- calcular_estadisticas(filo_abundancia, Grupos)
+
+print(resultados)
+
+
+
+```
+
+
+
+
